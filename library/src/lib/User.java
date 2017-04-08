@@ -4,15 +4,14 @@
  * and open the template in the editor.
  */
 
-package user;
+package lib;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import util.Functions;
 
 /**
  *
@@ -36,7 +35,7 @@ public class User {
             _out = new ObjectOutputStream(connection.getOutputStream());
             return true;
         } catch (IOException ex) {
-            ex.printStackTrace();
+            System.err.println("Could not open connection with client.");
             return false;
         }
     }
@@ -47,7 +46,7 @@ public class User {
         boolean ok;
         do {
             try {
-                inputName = waitForMessage();
+                inputName = (String) waitForMessage();
             } catch(EOFException e) {
                 throw new EOFException();
             }
@@ -55,13 +54,12 @@ public class User {
             if (!ok) sendData("Wrong input, try again.");
         } while(!ok);
         _name = inputName;
-        return inputName;
+        return _name;
     }
     
-    public String waitForMessage() throws EOFException {
-        String inputMessage = "";
+    public Object waitForMessage() throws EOFException {
         try {
-            inputMessage = (String) _in.readObject();
+            return _in.readObject();
         } catch (ClassNotFoundException e) {
             System.err.println("Object of an unknown type was recieved");
         } catch (EOFException e) {
@@ -69,12 +67,20 @@ public class User {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        return inputMessage;
+        return null;
+    }
+    
+    public void sendData(Message m) {
+        sendData((Object) m);
     }
     
     public void sendData(String s) {
+        sendData((Object) s);
+    }
+    
+    public void sendData(Object o) {
         try {
-            _out.writeObject(s);
+            _out.writeObject(o);
             _out.flush();
         } catch (IOException e) {
             System.err.println("Error writting the message");
@@ -88,7 +94,7 @@ public class User {
             _connection.close();
             _connected = false;
         } catch (IOException ex) {
-            ex.printStackTrace();
+            System.out.println("Error closing connection with user.");
         }
     }
     
