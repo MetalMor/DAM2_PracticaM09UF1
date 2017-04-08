@@ -4,9 +4,11 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import user.User;
+import lib.Message;
+import lib.User;
 
 public class Server {
     private static Server _instance;
@@ -27,10 +29,7 @@ public class Server {
         } catch (IOException e) {
             System.err.println("Invalid port number");
         }
-        while (true) {
-            Socket connection = waitForConnection();
-            processConnection(new User(connection));
-        }
+        while (true) processConnection(new User(waitForConnection()));
     }
 
     private Socket waitForConnection() {
@@ -55,19 +54,23 @@ public class Server {
                 do {
                     try {
                         message = newUser.askName();
+                        ok = checkValidName(message);
+                        if (!ok) System.out.println("Name not valid.");
                     } catch (EOFException e) {
                         ok = false;
                         System.out.println("Lost connection with user.");
                         break;
                     }
-                } while (!(ok = checkValidName(message)));
+                } while (!ok);
                 if (ok) {
-                    _users.add(newUser);
                     sendData("New user: " + newUser.getName());
+                    _users.add(newUser);
+                    Message m = new Message(newUser.getName());
+                    m.setContent(("Welcome, " + newUser.getName()).getBytes(StandardCharsets.UTF_8));
+                    newUser.sendData(m);
                     while (true) {
                         try {
-                            message = newUser.waitForMessage();
-                            sendData(newUser.getName() + ": " + message);
+                            sendData(newUser.waitForMessage());
                         } catch(EOFException e) {
                             System.out.println("Lost connection with user " + newUser.getName() + ".");
                             break;
@@ -92,9 +95,17 @@ public class Server {
     }
 
     public void sendData(String s) {
+        sendData((Object) s);
+    }
+    
+    public void sendData(Message m) {
+        sendData((Object) m);
+    }
+    
+    public void sendData(Object o) {
         List<User> disconnectedUsers = new ArrayList<>();
         for (User user : _users) 
-            if(user.isConnected()) user.sendData(s);
+            if(user.isConnected()) user.sendData(o);
             else disconnectedUsers.add(user);
         _users.removeAll(disconnectedUsers);
     }
