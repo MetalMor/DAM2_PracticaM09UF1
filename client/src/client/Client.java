@@ -6,10 +6,14 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
+import lib.Crypter;
+import lib.Message;
 
 public class Client {
     private String _name;
+    private Crypter _crypter;
     private Socket _clientSocket;
     private ObjectOutputStream _out;
     private ObjectInputStream _in;
@@ -48,40 +52,64 @@ public class Client {
 
     public void processConnection() {
         //sendData("Connection established with the client");
-        String inputMessage = "";
+        Object input;
+        Message m;
+        boolean willShow, isName;
+        
         new Thread() {
             Scanner sc = new Scanner(System.in);
 
             @Override
             public void run() {
-                String outputMessage = "";
+                Message outputMessage = new Message(_name);
+                String userInput;
                 do {
-                    outputMessage = sc.nextLine();
-                    sendData(outputMessage);
-                } while (!outputMessage.equals("QUIT"));
+                    userInput = sc.nextLine();
+                    outputMessage.setContent(userInput.getBytes(StandardCharsets.UTF_8));
+                    sendData(_name == null ? userInput : outputMessage);
+                } while (!userInput.equals("QUIT"));
+                closeConnection();
             }
         }.start();
         while (true) {
-
             try {
-                inputMessage = (String) _in.readObject();
-                System.out.println(inputMessage);
+                input = _in.readObject();
+                if (input instanceof String) {
+                    System.out.println((String) input);
+                } else if (input instanceof Message) {
+                    m = (Message) input;
+                    willShow = _name == null || !m.getSender().equals(_name);
+                    isName = _name == null && m.getSender() != null;
+                    if (willShow) System.out.println(m.getStringContent());
+                    if (isName) _name = m.getSender();
+                }
             } catch (ClassNotFoundException e) {
                 System.err.println("Object of an unknown type was recieved");
+            } catch (EOFException e) {
+                System.err.println("Connection error, closing.");
+                System.exit(1);
             } catch (IOException e) {
-                e.printStackTrace();
+                System.err.println("Connection error, closing.");
                 System.exit(1);
             }
         }
     }
-
-    public void sendData(String s) {
+    
+    public void sendData(Object o) {
         try {
-            _out.writeObject(s);
+            _out.writeObject(o);
             _out.flush();
         } catch (IOException e) {
             System.err.println("Error writting the message");
         }
+    }
+
+    public void sendData(Message m) {
+        sendData((Object) m);
+    }
+    
+    public void sendData(String s) {
+        sendData((Object) s);
     }
 
     public void closeConnection() {
